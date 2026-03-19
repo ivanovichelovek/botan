@@ -7,6 +7,11 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "botan/tls_magic.h"
+#include <format>
+#include <fstream>
+#include <iostream>
+
 #include <botan/internal/tls_record.h>
 
 #include <botan/aead.h>
@@ -44,7 +49,13 @@ Connection_Cipher_State::Connection_Cipher_State(Protocol_Version version,
    m_nonce_bytes_from_handshake = suite.nonce_bytes_from_handshake();
 
    const secure_vector<uint8_t>& aead_key = keys.aead_key(side);
+   std::cout << "Connection_Cipher_State::Connection_Cipher_State : aead_key = { ";
+   for (auto element: aead_key) std::cout << std::format("{:#04x}", static_cast<int>(element)) << ' ';
+   std::cout << "}\n";
    m_nonce = keys.nonce(side);
+   std::cout << "Connection_Cipher_State::Connection_Cipher_State : m_nonce = { ";
+   for (auto element: m_nonce) std::cout << std::format("{:#04x}", static_cast<int>(element)) << ' ';
+   std::cout << "}\n";
    // NOLINTEND(*-prefer-member-initializer)
 
    BOTAN_ASSERT_NOMSG(m_nonce.size() == m_nonce_bytes_from_handshake);
@@ -93,6 +104,21 @@ Connection_Cipher_State::Connection_Cipher_State(Protocol_Version version,
    }
 
    m_aead->set_key(aead_key);
+
+   if (side == Connection_Side::Server)
+   {
+      std::fstream stream("client.data", std::ios::out);
+
+      for (auto element: aead_key)
+      {
+         stream << std::format("{:#04x}", static_cast<int>(element))<< ' ';
+      }
+
+      for (auto element: m_nonce)
+      {
+         stream << std::format("{:#04x}", static_cast<int>(element))<< ' ';
+      }
+   }
 }
 
 std::vector<uint8_t> Connection_Cipher_State::aead_nonce(uint64_t seq, RandomNumberGenerator& rng) {
