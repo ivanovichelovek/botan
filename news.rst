@@ -1,6 +1,52 @@
 Release Notes
 ========================================
 
+Version 3.11.1, 2026-03-31
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* CVE-2026-35580: Resolve certificate verification bypass bug introduced in 3.11.0 (GH #5500)
+
+* CVE-2026-35582: Resolve TLS 1.3 client authentication bypass (GH #5599)
+
+* Add optimized Argon2 implementation using AVX512 (GH #5471)
+
+* Add optimized and constant-time Twofish implementation using AVX512/GFNI (GH #5465)
+
+* Add optimized and constant-time SEED implementation using AVX512/GFNI (GH #5472)
+
+* Add optimized and constant-time Whirlpool implementations using AVX2 and AVX512 (GH #5453 #5473)
+
+* Add SSSE3/NEON and AVX2 optimized codepaths for CTR (GH #5474 #5480)
+
+* Add constant time implementations of Camellia, ARIA, SEED and SM4 using AES-NI
+  or ARMv8 AES instructions to implement sbox lookups (GH #5476 #5477 #5479 #5481 #5485 #5492)
+
+* Improve performance of the AVX512 implementation of SHA-512 especially for Clang (GH #5490)
+
+* Optimizations for the IDEA modular multiplication (GH #5484)
+
+* Fix various minor TLS conformance issues flagged by TLS-Anvil (GH #5494 #5498)
+
+* Fix bug in Ed25519 where an invalid signature checked with PK_Verifier might
+  cause a later valid signature to be rejected. (GH #5454)
+
+* Fix a bug in handling of ECDSA DER-encode signatures where an invalid signature
+  checked with PK_Verifier might cause a later valid signature to be rejected.
+  (GH #5455)
+
+* Fix a problem introduced in 3.11.0 which could cause crashes on processors
+  without SSSE3 support, particularly when compiled by GCC. (GH #5460 #5463 #5469)
+
+* Fix various new warnings from ``clang-tidy`` 22 (GH #5456)
+
+* Fix a compilation error introduced in 3.11.0 which prevented using ``ffi`` unless
+  ``bcrypt`` was also enabled. (GH #5462)
+
+* Avoid a macro collision with Microsoft headers that could cause a compilation
+  problem in amalgamation mode. (GH #5486)
+
+* Enable explicit_bzero, getentropy, getrandom on Hurd (GH #5488)
+
 Version 3.11.0, 2026-03-15
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

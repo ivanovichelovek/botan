@@ -9,6 +9,8 @@
 #define BOTAN_X509_CERTS_H_
 
 #include <botan/x509_obj.h>
+#include <array>
+#include <cstring>
 #include <memory>
 
 namespace Botan {
@@ -124,7 +126,7 @@ class BOTAN_PUBLIC_API(2, 0) X509_Certificate : public X509_Object {
       /**
       * SHA-256 of Raw issuer DN
       */
-      std::vector<uint8_t> raw_issuer_dn_sha256() const;
+      const std::vector<uint8_t>& raw_issuer_dn_sha256() const;
 
       /**
       * Raw subject DN
@@ -134,7 +136,7 @@ class BOTAN_PUBLIC_API(2, 0) X509_Certificate : public X509_Object {
       /**
       * SHA-256 of Raw subject DN
       */
-      std::vector<uint8_t> raw_subject_dn_sha256() const;
+      const std::vector<uint8_t>& raw_subject_dn_sha256() const;
 
       /**
       * Get the notBefore of the certificate as X509_Time
@@ -364,6 +366,44 @@ class BOTAN_PUBLIC_API(2, 0) X509_Certificate : public X509_Object {
       std::string fingerprint(std::string_view hash_name = "SHA-1") const;
 
       /**
+      * A collision resistant binary "tag" of a certificate
+      *
+      * The actual value is deliberately not exposed; a Tag can only be hashed
+      * to a size_t, or compared with another Tag. This type is intended for use
+      * as a key in std::map and std::unordered_map, or to be saved in a
+      * std::set or std::unordered_set.
+      */
+      class Tag final {
+         public:
+            static constexpr size_t TagLen = 32;
+
+            auto operator<=>(const Tag&) const = default;
+
+            size_t hash() const noexcept {
+               size_t h = 0;
+               std::memcpy(&h, m_tag.data(), sizeof(h));
+               return h;
+            }
+
+         private:
+            friend X509_Certificate;
+
+            explicit Tag(std::array<uint8_t, TagLen> tag) : m_tag(tag) {}
+
+            std::array<std::uint8_t, TagLen> m_tag;
+      };
+
+      class TagHash final {
+         public:
+            size_t operator()(const X509_Certificate::Tag& tag) const noexcept { return tag.hash(); }
+      };
+
+      /**
+      * Return a collision resistant binary "tag" of this certificate
+      */
+      Tag tag() const;
+
+      /**
       * Check if a certain DNS name matches up with the information in
       * the cert
       * @param name DNS name to match
@@ -436,7 +476,7 @@ class BOTAN_PUBLIC_API(2, 0) X509_Certificate : public X509_Object {
 
       const X509_Certificate_Data& data() const;
 
-      std::shared_ptr<X509_Certificate_Data> m_data;
+      std::shared_ptr<const X509_Certificate_Data> m_data;
 };
 
 /**

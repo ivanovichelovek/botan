@@ -13,10 +13,34 @@
 #include <botan/data_src.h>
 #include <botan/x509_ext.h>
 #include <botan/x509cert.h>
+#include <set>
 
 namespace Botan {
 
-struct CRL_Data {
+class CRL_Data final {
+   public:
+      CRL_Data(const X509_DN& issuer,
+               const X509_Time& this_update,
+               const X509_Time& next_update,
+               const std::vector<CRL_Entry>& revoked) :
+            m_issuer(issuer), m_this_update(this_update), m_next_update(next_update), m_entries(revoked) {
+         this->update_index();
+      }
+
+      CRL_Data() = default;
+
+      void update_index() {
+         m_revoked_serials.clear();
+         for(const auto& entry : m_entries) {
+            if(entry.reason_code() == CRL_Code::RemoveFromCrl) {
+               m_revoked_serials.erase(entry.serial_number());
+            } else {
+               m_revoked_serials.insert(entry.serial_number());
+            }
+         }
+      }
+
+      // NOLINTBEGIN(*non-private-member-variables-in-classes)
       X509_DN m_issuer;
       size_t m_version{};
       X509_Time m_this_update;
@@ -24,10 +48,14 @@ struct CRL_Data {
       std::vector<CRL_Entry> m_entries;
       Extensions m_extensions;
 
+      // cached values from entries
+      std::set<std::vector<uint8_t>> m_revoked_serials;
+
       // cached values from extensions
       size_t m_crl_number = 0;
       std::vector<uint8_t> m_auth_key_id;
       std::vector<std::string> m_idp_urls;
+      // NOLINTEND(*non-private-member-variables-in-classes)
 };
 
 std::string X509_CRL::PEM_label() const {
@@ -58,11 +86,7 @@ X509_CRL::X509_CRL(const X509_DN& issuer,
                    const X509_Time& this_update,
                    const X509_Time& next_update,
                    const std::vector<CRL_Entry>& revoked) {
-   m_data = std::make_shared<CRL_Data>();
-   m_data->m_issuer = issuer;
-   m_data->m_this_update = this_update;
-   m_data->m_next_update = next_update;
-   m_data->m_entries = revoked;
+   m_data = std::make_shared<CRL_Data>(issuer, this_update, next_update, revoked);
 }
 
 /**
@@ -86,22 +110,7 @@ bool X509_CRL::is_revoked(const X509_Certificate& cert) const {
       }
    }
 
-   const std::vector<uint8_t>& cert_serial = cert.serial_number();
-
-   bool is_revoked = false;
-
-   // FIXME would be nice to avoid a linear scan here - maybe sort the entries?
-   for(const CRL_Entry& entry : get_revoked()) {
-      if(cert_serial == entry.serial_number()) {
-         if(entry.reason_code() == CRL_Code::RemoveFromCrl) {
-            is_revoked = false;
-         } else {
-            is_revoked = true;
-         }
-      }
-   }
-
-   return is_revoked;
+   return data().m_revoked_serials.contains(cert.serial_number());
 }
 
 /*
@@ -176,6 +185,8 @@ std::unique_ptr<CRL_Data> decode_crl_body(const std::vector<uint8_t>& body, cons
    if(const auto* ext = data->m_extensions.get_extension_object_as<Cert_Extension::CRL_Issuing_Distribution_Point>()) {
       data->m_idp_urls = ext->get_point().get_attribute("URL");
    }
+
+   data->update_index();
 
    return data;
 }

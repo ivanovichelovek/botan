@@ -56,6 +56,7 @@ struct X509_Certificate_Data {
 
       std::string m_fingerprint_sha1;
       std::string m_fingerprint_sha256;
+      std::array<uint8_t, 32> m_tag = {};
 
       AlternativeName m_subject_alt_name;
       AlternativeName m_issuer_alt_name;
@@ -313,15 +314,17 @@ std::unique_ptr<X509_Certificate_Data> parse_x509_cert_body(const X509_Object& o
       data->m_fingerprint_sha1 = create_hex_fingerprint(full_encoding, "SHA-1");
    }
 
-   if(auto sha256 = HashFunction::create("SHA-256")) {
-      sha256->update(data->m_issuer_dn_bits);
-      data->m_issuer_dn_bits_sha256 = sha256->final_stdvec();
+   // SHA-256 is a hard dependency of this module
+   auto sha256 = HashFunction::create_or_throw("SHA-256");
+   sha256->update(data->m_issuer_dn_bits);
+   data->m_issuer_dn_bits_sha256 = sha256->final_stdvec();
 
-      sha256->update(data->m_subject_dn_bits);
-      data->m_subject_dn_bits_sha256 = sha256->final_stdvec();
+   sha256->update(data->m_subject_dn_bits);
+   data->m_subject_dn_bits_sha256 = sha256->final_stdvec();
 
-      data->m_fingerprint_sha256 = create_hex_fingerprint(full_encoding, "SHA-256");
-   }
+   sha256->update(full_encoding);
+   sha256->final(data->m_tag);
+   data->m_fingerprint_sha256 = format_hex_fingerprint(data->m_tag);
 
    return data;
 }
@@ -631,14 +634,14 @@ std::unique_ptr<Public_Key> X509_Certificate::load_subject_public_key() const {
    return this->subject_public_key();
 }
 
-std::vector<uint8_t> X509_Certificate::raw_issuer_dn_sha256() const {
+const std::vector<uint8_t>& X509_Certificate::raw_issuer_dn_sha256() const {
    if(data().m_issuer_dn_bits_sha256.empty()) {
       throw Encoding_Error("X509_Certificate::raw_issuer_dn_sha256 called but SHA-256 disabled in build");
    }
    return data().m_issuer_dn_bits_sha256;
 }
 
-std::vector<uint8_t> X509_Certificate::raw_subject_dn_sha256() const {
+const std::vector<uint8_t>& X509_Certificate::raw_subject_dn_sha256() const {
    if(data().m_subject_dn_bits_sha256.empty()) {
       throw Encoding_Error("X509_Certificate::raw_subject_dn_sha256 called but SHA-256 disabled in build");
    }
@@ -662,6 +665,10 @@ std::string X509_Certificate::fingerprint(std::string_view hash_name) const {
    } else {
       return create_hex_fingerprint(this->BER_encode(), hash_name);
    }
+}
+
+X509_Certificate::Tag X509_Certificate::tag() const {
+   return Tag(data().m_tag);
 }
 
 bool X509_Certificate::matches_dns_name(std::string_view name) const {

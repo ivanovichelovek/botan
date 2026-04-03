@@ -131,7 +131,7 @@ std::vector<X509_DN> Certificate_Store_In_SQL::all_subjects() const {
 
    while(stmt->step()) {
       auto blob = stmt->get_blob(0);
-      BER_Decoder dec(blob.first, blob.second);
+      BER_Decoder dec(std::span<const uint8_t>{blob.first, blob.second});
       X509_DN dn;
 
       dn.decode_from(dec);
@@ -163,6 +163,12 @@ bool Certificate_Store_In_SQL::insert_cert(const X509_Certificate& cert) {
    stmt->spin();
 
    return true;
+}
+
+bool Certificate_Store_In_SQL::contains(const X509_Certificate& cert) const {
+   auto stmt = m_database->new_statement("SELECT 1 FROM " + m_prefix + "certificates WHERE fingerprint == ?1");
+   stmt->bind(1, cert.fingerprint("SHA-256"));
+   return stmt->step();
 }
 
 bool Certificate_Store_In_SQL::remove_cert(const X509_Certificate& cert) {
